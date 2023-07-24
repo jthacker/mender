@@ -114,8 +114,30 @@ func (d *dualRootfsDeviceImpl) Reboot() error {
 }
 
 func (d *dualRootfsDeviceImpl) RollbackReboot() error {
-	log.Infof("Mender rebooting from inactive partition: %s", d.active)
-	return d.rebooter.Reboot()
+	env, err := d.ReadEnv("mender_boot_part")
+	if err != nil {
+		return err
+	}
+	// Partition that mender should boot from on reboot
+	mender_boot_part, ok := env["mender_boot_part"]
+	if !ok {
+		// Oh my
+		return errors.New(
+			"The bootloader environment does not have the 'mender_boot_part' set." +
+				" This is a critical error.",
+		)
+	}
+	activePartition, _, err := d.getActivePartition()
+	if err != nil {
+		log.Error("Failed to get the active partition.")
+		return err
+	}
+	if mender_boot_part == activePartition {
+		log.Infof("Already in the active partition, not rebooting")
+	} else {
+		log.Infof("Mender rebooting from inactive partition: %s", d.active)
+		return d.rebooter.Reboot()
+	}
 }
 
 func (d *dualRootfsDeviceImpl) Rollback() error {
